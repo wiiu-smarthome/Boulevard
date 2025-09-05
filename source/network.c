@@ -5,92 +5,88 @@
 #include "network.h"
 #include "heap.h"
 #include "ipc.h"
-#include "log.h"
 #include "mem.h"
-#include "str_utils.h"
 #include "syscalls.h"
 #include "types.h"
 
-#define IPC_ENOENT -6
-#define IPC_ENOMEM -22
-
 static char __manage_fs[] ATTRIBUTE_ALIGN(32) = "/dev/net/ncd/manage";
 static char __iptop_fs[] ATTRIBUTE_ALIGN(32) = "/dev/net/ip/top";
+static char __kd_fs[] ATTRIBUTE_ALIGN(32) = "/dev/net/kd/request";
 
 static s32 msg_queue;
-
-static s32 net_init_chain(s32 result, void *usrdata)
-{
-    struct init_data *data = (struct init_data *)usrdata;
-    static char state_buf[1];
-
-    LOG_Write("Entered state:", "net_init_chain", __LINE__);
-    LOG_Write(itoa(data->state, state_buf, 10), "", __LINE__);
-
-    switch (data->state) {
-    // Open network manager FD
-    case 0:
-        data->state = 1;
-
-        LOG_Write("Calling open", "net_init_chain", __LINE__);
-        data->result = os_open_async(__manage_fs, 0, net_init_chain, data);
-        if (data->result < 0) {
-            LOG_Write("result failure", "net_init_chain", __LINE__);
-            LOG_Write(itoa(data->result, state_buf, 10), "", __LINE__);
-            return data->result;
-        }
-
-        goto done;
-    default:
-        LOG_Write("Unknown state", "net_init_chain", __LINE__);
-        data->result = -1;
-
-        break;
-    }
-
-done:
-    os_heap_free((u32)heapspace, data->buf);
-    os_heap_free((u32)heapspace, data);
-
-    return 0;
-}
+static s32 ncd_fd = -1;
+static s32 iptop_fd = -1;
+static s32 kd_fd = -1;
 
 s32 net_init(void)
 {
-    struct init_data *data;
+    ioctlv *vec;
+    s32 *nwc24startup_buffer = os_heap_alloc((u32)heapspace, 0x32);
 
-    void *queue_buffer = os_heap_alloc((u32)heapspace, 0x20);
-    if (!queue_buffer) {
+    /* Open network manager device */
+    ncd_fd = os_open(__manage_fs, 0);
+    if (ncd_fd < 0) {
+        return -2;
+    }
+
+    /* Initialize vec for link status request */
+    vec = Mem_Alloc(sizeof(vec));
+    if (!vec) {
         return IPC_ENOMEM;
     }
 
-    // TODO: as we are doing initialization, there is not really a need to spin network
-    // initialization onto another thread. is this necessary?
-    msg_queue = os_message_queue_create(queue_buffer, 0x8);
-    if (msg_queue < 0) {
-        return msg_queue;
-    }
+    memset(vec, 0, sizeof(vec));
 
-    // for debug???
-    s32 ret = os_device_register("/dev/blvd/net_init", msg_queue);
-    if (ret < 0) {
-        return ret;
-    }
-
-    data = Mem_Alloc(sizeof(data));
-    if (!data) {
-        return IPC_ENOMEM;
-    }
-
-    memset(data, 0, sizeof(data));
-
-    data->buf = os_heap_alloc_aligned((u32)heapspace, 32, 0x20);
-    if (!data->buf) {
-        os_heap_free((u32)heapspace, data);
+    vec->data = os_heap_alloc_aligned((u32)heapspace, 32, 0x20);
+    if (!vec->data) {
+        os_heap_free((u32)heapspace, vec);
         return -1;
     }
 
-    net_init_chain(IPC_ENOENT, data);
+    /* Get link status */
+    s32 ret = os_ioctlv(ncd_fd, IOCTL_NCD_GETLINKSTATUS, 0, 0, vec);
+    if (ret < 0) {
+        os_close(ncd_fd);
+        os_heap_free((u32)heapspace, vec);
+        return -3;
+    }
 
+    /* Close network manager device and free vec, we don't need it anymore */
+    os_close(ncd_fd);
+    os_heap_free((u32)heapspace, vec);
+
+    /* Open top ip device */
+    iptop_fd = os_open(__manage_fs, 0);
+    if (iptop_fd < 0) {
+        return -4;
+    }
+
+    /* Open KD (NWC24) device, not sure why, but we do */
+    kd_fd = os_open(__kd_fs, 0);
+    if (kd_fd < 0) {
+        return -5;
+    }
+
+    /* Startup NWC24... still not sure why */
+    ret = os_ioctl(kd_fd, IOCTL_NWC24_STARTUP, NULL, 0, nwc24startup_buffer, 0x20);
+    if (nwc24startup_buffer == -15)
+        goto done;
+    else if (ret < 0) {
+        return -6;
+    }
+
+    /* Socket startup */
+    ret = os_ioctl(iptop_fd, IOCTL_SO_STARTUP, 0, 0, 0, 0);
+    if (ret < 0) {
+        return -7;
+    }
+
+    /* Check ip/Get host id */
+    ret = os_ioctl(iptop_fd, IOCTL_SO_GETHOSTID, 0, 0, 0, 0);
+    if (ret < 0) {
+        return -8;
+    }
+
+done:
     return 0;
 }

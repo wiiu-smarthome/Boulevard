@@ -1,12 +1,8 @@
 #include <assert.h>
 #include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include "heap.h"
 #include "ios.h"
-#include "log.h"
 #include "network.h"
 #include "syscalls.h"
 
