@@ -4,12 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "heap.h"
 #include "ios.h"
 #include "log.h"
+#include "network.h"
 #include "syscalls.h"
 
-#include "heap.h"
-#include "network.h"
+char *moduleName = "BOULEVARD";
 
 int main(void)
 {
@@ -19,12 +20,12 @@ int main(void)
     svc_write("$IOSVersion: Boulevard running\n");
 
     ret = heap_init();
-    if(ret < 0) {
+    if (ret < 0) {
         return ret;
     }
 
     ret = net_init();
-    if(ret < 0) {
+    if (ret < 0) {
         return ret;
     }
 
