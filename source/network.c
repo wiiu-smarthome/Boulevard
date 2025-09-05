@@ -125,7 +125,7 @@ s32 net_init(void)
     os_heap_free((u32)heapspace, vec);
 
     /* Open top ip device */
-    iptop_fd = os_open(__manage_fs, 0);
+    iptop_fd = os_open(__iptop_fs, 0);
     if (iptop_fd < 0) {
         return -4;
     }
