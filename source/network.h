@@ -136,7 +136,9 @@ struct sockaddr {
 #define socklen_t int
 
 s32 socket(u32 domain, u32 type, u32 protocol);
+s32 accept(u32 s, struct sockaddr *addr, socklen_t *addrlen);
 s32 bind(u32 s, struct sockaddr *addr, socklen_t addrlen);
+s32 listen(u32 s, u32 backlog);
 s32 setsockopt(u32 s, u32 level, u32 optname, const void *optval, socklen_t optlen);
 
 s32 net_init(void);

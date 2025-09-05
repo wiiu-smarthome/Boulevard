@@ -20,7 +20,6 @@ static s32 kd_fd = -1;
 
 s32 setsockopt(u32 s, u32 level, u32 optname, const void *optval, socklen_t optlen)
 {
-    s32 ret;
     STACK_ALIGN(struct setsockopt_params, params, 1, 32);
 
     // TODO: In release builds, remove the sanity checks since we will be doing this properly
@@ -67,7 +66,6 @@ s32 socket(u32 domain, u32 type, u32 protocol)
 
 s32 bind(u32 s, struct sockaddr *addr, socklen_t addrlen)
 {
-    s32 ret;
     STACK_ALIGN(struct bind_params, params, 1, 32);
 
     // TODO: In release builds, remove the sanity checks since we will be doing this properly
@@ -85,6 +83,45 @@ s32 bind(u32 s, struct sockaddr *addr, socklen_t addrlen)
     memcpy(params->name, addr, sizeof(struct wii_sockaddr_in));
 
     return os_ioctl(iptop_fd, IOCTL_SO_BIND, params, sizeof(struct bind_params), NULL, 0);
+}
+
+s32 listen(u32 s, u32 backlog)
+{
+    STACK_ALIGN(u32, params, 2, 32);
+
+    // TODO: In release builds, remove the sanity checks since we will be doing this properly
+    if (iptop_fd < 0)
+        return -ENXIO; // no such device
+
+    params[0] = s;
+    params[1] = backlog;
+
+    return os_ioctl(iptop_fd, IOCTL_SO_LISTEN, params, 8, NULL, 0);
+}
+
+// FIXME: why is addrlen a pointer in libogc?
+// TODO: truly understand this function
+s32 accept(u32 s, struct sockaddr *addr, socklen_t *addrlen)
+{
+    STACK_ALIGN(u32, _socket, 1, 32);
+
+    // TODO: In release builds, remove the sanity checks since we will be doing this properly
+    if (iptop_fd < 0)
+        return -ENXIO; // no such device
+    if (!addr)
+        return -EINVAL;
+    addr->sa_len = sizeof(struct wii_sockaddr_in);
+    addr->sa_family = AF_INET;
+
+    if (!addrlen)
+        return -EINVAL; // we can maybe also remove this
+    if (*addrlen < sizeof(struct wii_sockaddr_in))
+        return -ENOMEM;
+
+    *addrlen = sizeof(struct wii_sockaddr_in);
+    *_socket = s;
+
+    return os_ioctl(iptop_fd, IOCTL_SO_ACCEPT, _socket, 4, addr, *addrlen);
 }
 
 s32 net_init(void)
