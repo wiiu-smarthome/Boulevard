@@ -85,6 +85,13 @@ struct sockaddr {
     s8 sa_data[14];
 };
 
+struct sendto_params {
+    u32 socket;
+    u32 flags;
+    u32 has_destaddr;
+    u8 destaddr[28];
+};
+
 /*
  * Option flags per-socket.
  */
@@ -139,6 +146,8 @@ s32 socket(u32 domain, u32 type, u32 protocol);
 s32 accept(u32 s, struct sockaddr *addr, socklen_t *addrlen);
 s32 bind(u32 s, struct sockaddr *addr, socklen_t addrlen);
 s32 listen(u32 s, u32 backlog);
+#define send(s, data, size, flags) sendto(s, data, size, flags, NULL, 0);
+s32 sendto(u32 s, const void *data, s32 len, u32 flags, struct sockaddr *to, socklen_t tolen);
 s32 setsockopt(u32 s, u32 level, u32 optname, const void *optval, socklen_t optlen);
 
 s32 net_init(void);

@@ -10,6 +10,7 @@
 #include "syscalls.h"
 #include "types.h"
 
+const s32 maxblocksize = (sizeof(heapspace) / 2);
 static char __manage_fs[] ATTRIBUTE_ALIGN(32) = "/dev/net/ncd/manage";
 static char __iptop_fs[] ATTRIBUTE_ALIGN(32) = "/dev/net/ip/top";
 static char __kd_fs[] ATTRIBUTE_ALIGN(32) = "/dev/net/kd/request";
@@ -110,6 +111,8 @@ s32 accept(u32 s, struct sockaddr *addr, socklen_t *addrlen)
         return -ENXIO; // no such device
     if (!addr)
         return -EINVAL;
+
+    // why is it called "len" if it is the size?
     addr->sa_len = sizeof(struct wii_sockaddr_in);
     addr->sa_family = AF_INET;
 
@@ -122,6 +125,77 @@ s32 accept(u32 s, struct sockaddr *addr, socklen_t *addrlen)
     *_socket = s;
 
     return os_ioctl(iptop_fd, IOCTL_SO_ACCEPT, _socket, 4, addr, *addrlen);
+}
+
+s32 sendto(u32 s, const void *data, s32 len, u32 flags, struct sockaddr *to, socklen_t tolen)
+{
+    s32 ret;
+    u8 *message_buf = NULL;
+    STACK_ALIGN(struct sendto_params, params, 1, 32);
+
+    // TODO: In release builds, remove the sanity checks since we will be doing this properly
+    if (iptop_fd < 0)
+        return -ENXIO; // no such device
+    if (tolen > 28)
+        return -EOVERFLOW;
+
+    s32 blocksize = len > maxblocksize ? maxblocksize : len;
+    message_buf = os_heap_alloc((s32)heapspace, blocksize);
+    if (!message_buf)
+        return IPC_ENOMEM;
+
+    // what on earth is this..
+    // I am basically copying this code while having no idea what it is doing
+    // but this is..
+    for (ret = 0; ret < len;) {
+        blocksize = len - ret;
+        if (blocksize > maxblocksize)
+            blocksize = maxblocksize;
+
+        if (to && to->sa_len != tolen) {
+            // another check we can maybe cleanup?
+            to->sa_len = tolen;
+        }
+
+        memset(params, 0, sizeof(struct sendto_params));
+        memcpy(message_buf, data + ret,
+               blocksize); // libogc comment: "ensure message buf is aligned"
+
+        params->socket = s;
+        params->flags = flags;
+        if (to) {
+            // isn't this always true?
+            params->has_destaddr = 1;
+            memcpy(params->destaddr, to, to->sa_len);
+        } else {
+            params->has_destaddr = 0;
+        }
+
+        // custom things now, to ensure we use ioctlv (i'm assuming we're supposed to)
+        ioctlv *vec;
+        vec = os_heap_alloc((s32)heapspace, sizeof(ioctlv));
+        if (!vec) {
+            // TODO: cleanup
+            return -100;
+        }
+
+        vec->data = message_buf;
+        vec->len = blocksize;
+        // FIXME: check params
+        s32 sent = os_ioctlv(iptop_fd, IOCTLV_SO_SENDTO, blocksize, 0, vec);
+
+        if (sent <= 0) {
+            ret = sent;
+            os_heap_free((s32)heapspace, vec);
+            break;
+        }
+
+        ret += sent;
+    }
+
+    if (message_buf != NULL)
+        os_heap_free((s32)heapspace, message_buf);
+    return ret;
 }
 
 s32 net_init(void)
