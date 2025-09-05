@@ -97,7 +97,7 @@ s32   os_write(s32 fd, void *s, s32 len);
 s32   os_seek(s32 fd, s32 offset, s32 mode);
 s32   os_ioctlv(s32 fd, s32 request, s32 bytes_in, s32 bytes_out, ioctlv *vector);
 s32   os_ioctl(s32 fd, s32 request, void *in,  s32 bytes_in, void *out, s32 bytes_out);
-s32   os_open_async(const char *device, s32 mode, int queue_id, void *message);
+s32   os_open_async(const char *device, s32 mode, void* ipc_cb, void *message);
 s32   os_close_async(s32 fd, void *ipc_cb, void *usrdata);
 s32   os_ioctlv_async(s32 fd, s32 request, s32 bytes_in, s32 bytes_out, ioctlv *vector, ...);
 s32   os_ioctl_async(s32 fd, s32 request, void *in,  s32 bytes_in, void *out, s32 bytes_out, ...);
