@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdarg.h>
 
+#include "avenue.h"
 #include "heap.h"
 #include "ios.h"
 #include "network.h"
@@ -21,6 +22,11 @@ int main(void)
     }
 
     ret = net_init();
+    if (ret < 0) {
+        return ret;
+    }
+
+    ret = avenue_init();
     if (ret < 0) {
         return ret;
     }
