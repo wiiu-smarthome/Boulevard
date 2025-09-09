@@ -83,6 +83,7 @@ s32 __DebugThreadLoop()
             switch (cmd) {
             case BLVD_GET_STATUS: {
                 ret = blvd_state;
+                break;
             }
             default:
                 ret = IPC_EINVAL;
