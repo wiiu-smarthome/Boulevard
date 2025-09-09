@@ -2,6 +2,7 @@
 // https://github.com/devkitPro/libogc/blob/master/libogc/network_wii.c
 #include <string.h>
 
+#include "debug.h"
 #include "errno.h"
 #include "heap.h"
 #include "ipc.h"
@@ -206,12 +207,14 @@ s32 net_init(void)
     /* Open network manager device */
     ncd_fd = os_open(__manage_fs, 0);
     if (ncd_fd < 0) {
-        return -2;
+        blvd_state = BLVD_STATE_OPEN_NCD_FAIL;
+        return BLVD_STATE_OPEN_NCD_FAIL;
     }
 
     /* Initialize vec for link status request */
     vec = Mem_Alloc(sizeof(vec));
     if (!vec) {
+        blvd_state = BLVD_STATE_ALLOC_VEC_LINK_STATUS_REQUEST_FAIL;
         return IPC_ENOMEM;
     }
 
@@ -220,15 +223,17 @@ s32 net_init(void)
     vec->data = os_heap_alloc_aligned((u32)heapspace, 32, 0x20);
     if (!vec->data) {
         os_heap_free((u32)heapspace, vec);
-        return -1;
+        blvd_state = BLVD_STATE_ALLOC_VEC_LINK_STATUS_REQUEST_FAIL;
+        return BLVD_STATE_ALLOC_VEC_LINK_STATUS_REQUEST_FAIL;
     }
 
     /* Get link status */
     s32 ret = os_ioctlv(ncd_fd, IOCTL_NCD_GETLINKSTATUS, 0, 0, vec);
     if (ret < 0) {
+        blvd_state = BLVD_STATE_LINK_STATUS_IOCTL_FAIL;
         os_close(ncd_fd);
         os_heap_free((u32)heapspace, vec);
-        return -3;
+        return BLVD_STATE_LINK_STATUS_IOCTL_FAIL;
     }
 
     /* Close network manager device and free vec, we don't need it anymore */
@@ -238,13 +243,15 @@ s32 net_init(void)
     /* Open top ip device */
     iptop_fd = os_open(__iptop_fs, 0);
     if (iptop_fd < 0) {
-        return -4;
+        blvd_state = BLVD_STATE_OPEN_IPTOP_FAIL;
+        return BLVD_STATE_OPEN_IPTOP_FAIL;
     }
 
     /* Open KD (NWC24) device, not sure why, but we do */
     kd_fd = os_open(__kd_fs, 0);
     if (kd_fd < 0) {
-        return -5;
+        blvd_state = BLVD_STATE_OPEN_KD_FAIL;
+        return BLVD_STATE_OPEN_KD_FAIL;
     }
 
     /* Startup NWC24... still not sure why */
@@ -252,19 +259,22 @@ s32 net_init(void)
     if (nwc24startup_buffer == -15)
         goto done;
     else if (ret < 0) {
-        return -6;
+        blvd_state = BLVD_STATE_NWC24_IOCTL_FAIL;
+        return BLVD_STATE_NWC24_IOCTL_FAIL;
     }
 
     /* Socket startup */
     ret = os_ioctl(iptop_fd, IOCTL_SO_STARTUP, 0, 0, 0, 0);
     if (ret < 0) {
-        return -7;
+        blvd_state = BLVD_STATE_SO_STARTUP_IOCTL_FAIL;
+        return BLVD_STATE_SO_STARTUP_IOCTL_FAIL;
     }
 
     /* Check ip/Get host id */
     ret = os_ioctl(iptop_fd, IOCTL_SO_GETHOSTID, 0, 0, 0, 0);
     if (ret < 0) {
-        return -8;
+        blvd_state = BLVD_STATE_SO_GETHOSTID_IOCTL_FAIL;
+        return BLVD_STATE_SO_GETHOSTID_IOCTL_FAIL;
     }
 
 done:

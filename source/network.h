@@ -52,6 +52,11 @@ enum {
 #define IPC_ENOENT -6
 #define IPC_ENOMEM -22
 
+// https://github.com/devkitPro/libogc/blob/master/gc/network.h#L215
+struct in_addr {
+    u32 s_addr;
+};
+
 // From
 // https://github.com/devkitPro/libogc/blob/475da950ccf7a294e15abe985e44cedc2d6d9caa/libogc/network_wii.c#L121:
 // wii doesn't have, or use, sin_zero in sockaddr_in and all communications assumes its not there
@@ -61,7 +66,7 @@ struct wii_sockaddr_in {
     u8 sin_len;
     u8 sin_family;
     u16 sin_port;
-    u32 sin_addr;
+    struct in_addr sin_addr;
 };
 
 struct setsockopt_params {

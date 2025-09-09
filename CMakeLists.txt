@@ -38,6 +38,8 @@ add_executable(boulevard
     source/main.c
     source/network.c
     source/libc.c
+    source/avenue.c
+    source/debug.c
 )
 
 target_include_directories(boulevard PRIVATE
